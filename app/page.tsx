@@ -5,31 +5,57 @@ import { Header } from "@/components/Header";
 import { StarField } from "@/components/StarField";
 import { PalmTracing } from "@/components/PalmTracing";
 import { ChapterSpread } from "@/components/ChapterSpread";
-import { getReading } from "@/lib/reading";
+import { getReading, type Reading } from "@/lib/reading";
 
 type Stage = "idle" | "tracing" | "revealed";
 
 export default function Home() {
   const [stage, setStage] = useState<Stage>("idle");
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [tracingDone, setTracingDone] = useState(false);
+  const [liveReading, setLiveReading] = useState<Reading | null>(null);
+  const [readingError, setReadingError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const readingRef = useRef<HTMLDivElement | null>(null);
 
-  const reading = getReading();
+  const fallbackReading = getReading();
+  const reading = liveReading ?? fallbackReading;
 
-  function handleFile(file: File | null) {
+  async function handleFile(file: File | null) {
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    setImageUrl(url);
     setStage("tracing");
+    setTracingDone(false);
+    setLiveReading(null);
+    setReadingError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      const res = await fetch("/api/read", { method: "POST", body: formData });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        throw new Error(payload?.error ?? `Request failed (${res.status})`);
+      }
+      const data = (await res.json()) as Reading;
+      setLiveReading(data);
+    } catch (e) {
+      setReadingError(e instanceof Error ? e.message : "The chart could not be read.");
+    }
   }
 
   function reset() {
-    if (imageUrl) URL.revokeObjectURL(imageUrl);
-    setImageUrl(null);
     setStage("idle");
+    setTracingDone(false);
+    setLiveReading(null);
+    setReadingError(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
+
+  // Reveal only when the tracing animation has finished AND the live reading has arrived.
+  useEffect(() => {
+    if (stage === "tracing" && tracingDone && liveReading) {
+      setStage("revealed");
+    }
+  }, [stage, tracingDone, liveReading]);
 
   useEffect(() => {
     if (stage === "revealed" && readingRef.current) {
@@ -39,6 +65,8 @@ export default function Home() {
       return () => clearTimeout(t);
     }
   }, [stage]);
+
+  const waitingOnReading = stage === "tracing" && tracingDone && !liveReading && !readingError;
 
   return (
     <main className="relative min-h-screen overflow-x-hidden">
@@ -103,8 +131,8 @@ export default function Home() {
                     <Arrow />
                   </button>
                   <div className="marginalia mt-3 max-w-[36ch]">
-                    A still photograph in good light. Nothing leaves the device — the
-                    chart is drawn here, in your browser, by hand.
+                    A still photograph in good light. The chart is drawn, the
+                    lines are named, and translated into five short chapters.
                   </div>
                 </div>
               )}
@@ -131,9 +159,8 @@ export default function Home() {
                 )}
                 {stage !== "idle" && (
                   <PalmTracing
-                    imageUrl={imageUrl}
                     state={stage}
-                    onTracingComplete={() => setStage("revealed")}
+                    onTracingComplete={() => setTracingDone(true)}
                   />
                 )}
 
@@ -143,6 +170,39 @@ export default function Home() {
                   <MarginNote n="ii" label="Linea Cephalica" hint="head" />
                   <MarginNote n="iii" label="Linea Vitalis" hint="life" />
                 </div>
+
+                {waitingOnReading && (
+                  <div className="mt-6 flex items-center justify-center">
+                    <div className="marginalia inline-flex items-center gap-3">
+                      <span className="celestial-rule w-10" />
+                      Consulting the chart
+                      <span className="inline-flex gap-1" aria-hidden="true">
+                        <Dot delay={0} />
+                        <Dot delay={180} />
+                        <Dot delay={360} />
+                      </span>
+                      <span className="celestial-rule w-10" />
+                    </div>
+                  </div>
+                )}
+
+                {readingError && stage !== "idle" && (
+                  <div className="mt-6 max-w-[44ch] mx-auto text-center">
+                    <div className="marginalia mb-2">An interruption</div>
+                    <p
+                      className="italic text-[var(--ink-soft)]"
+                      style={{ fontFamily: "var(--font-body)", fontSize: "1rem", lineHeight: 1.6 }}
+                    >
+                      The chart could not be read. {readingError}
+                    </p>
+                    <button
+                      onClick={reset}
+                      className="mt-4 marginalia hover:text-[var(--ink)] transition-colors"
+                    >
+                      ← Try another photograph
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -290,6 +350,18 @@ function MarginNote({ n, label, hint }: { n: string; label: string; hint: string
       </span>
       <span className="marginalia text-[0.68rem]">{hint}</span>
     </div>
+  );
+}
+
+function Dot({ delay }: { delay: number }) {
+  return (
+    <span
+      className="inline-block w-1 h-1 rounded-full bg-[var(--accent)]"
+      style={{
+        animation: `fade-in 1s ease ${delay}ms infinite alternate`,
+        opacity: 0.3,
+      }}
+    />
   );
 }
 
