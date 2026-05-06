@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 
 type Props = {
-  imageUrl: string | null;
   state: "idle" | "tracing" | "revealed";
   onTracingComplete?: () => void;
 };
@@ -50,7 +49,7 @@ const annotations: { id: string; x: number; y: number; numeral: string; label: s
   { id: "fate", x: 350, y: 220, numeral: "IV", label: "Linea Saturni", delay: 2700 },
 ];
 
-export function PalmTracing({ imageUrl, state, onTracingComplete }: Props) {
+export function PalmTracing({ state, onTracingComplete }: Props) {
   const [revealStarted, setRevealStarted] = useState(false);
 
   useEffect(() => {
@@ -68,27 +67,24 @@ export function PalmTracing({ imageUrl, state, onTracingComplete }: Props) {
       {/* Outer cartouche frame */}
       <Cartouche />
 
-      {/* Photo, desaturated under the etching */}
-      {imageUrl && (
-        <div
-          className="absolute inset-[6%] overflow-hidden"
-          style={{
-            clipPath: "ellipse(46% 48% at 50% 50%)",
-            filter: "grayscale(1) sepia(0.35) contrast(0.92) brightness(0.96)",
-            mixBlendMode: "multiply",
-            opacity: revealStarted ? 0.35 : 0.85,
-            transition: "opacity 1.6s var(--ease-celestial, ease)",
-          }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={imageUrl}
-            alt=""
-            className="w-full h-full object-cover"
-            aria-hidden="true"
-          />
-        </div>
-      )}
+      {/* Specimen plate — same etched palm as the idle cartouche */}
+      <div
+        className="absolute"
+        style={{
+          inset: "11% 14%",
+          clipPath: "ellipse(50% 50% at 50% 50%)",
+          opacity: revealStarted ? 0.55 : 0.9,
+          transition: "opacity 1.6s var(--ease-celestial, ease)",
+        }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/images/palm.png"
+          alt=""
+          aria-hidden="true"
+          className="palm-plate w-full h-full object-contain"
+        />
+      </div>
 
       {/* Etching SVG layer */}
       <svg
@@ -102,20 +98,6 @@ export function PalmTracing({ imageUrl, state, onTracingComplete }: Props) {
             <stop offset="100%" stopColor="var(--bg)" stopOpacity="0.85" />
           </radialGradient>
         </defs>
-
-        {/* hand silhouette in subtle ink — only visible when tracing */}
-        <path
-          d="M 180 540 C 160 470, 150 400, 158 330 C 162 290, 175 270, 195 270 C 210 270, 218 285, 220 305 L 222 200 C 222 178, 232 168, 246 168 C 260 168, 268 180, 268 198 L 268 270 L 280 198 C 280 178, 292 168, 306 168 C 320 168, 328 180, 328 198 L 328 280 L 342 220 C 342 200, 354 192, 366 196 C 378 200, 384 212, 380 230 L 366 310 L 396 270 C 408 256, 420 258, 426 270 C 432 282, 426 296, 416 308 L 380 372 C 370 396, 360 432, 360 470 C 360 510, 350 540, 320 558 C 290 574, 240 574, 210 564 C 195 558, 188 552, 180 540 Z"
-          fill="none"
-          stroke="var(--ink-soft)"
-          strokeWidth="0.6"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          opacity={state === "idle" ? 0 : 0.42}
-          style={{
-            transition: "opacity 1.4s var(--ease-celestial, ease)",
-          }}
-        />
 
         {/* Palm lines — drawn in stagger */}
         {lines.map((l) => (
