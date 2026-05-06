@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Header } from "@/components/Header";
 import { StarField } from "@/components/StarField";
 import { PalmTracing } from "@/components/PalmTracing";
-import { ChapterSpread } from "@/components/ChapterSpread";
+import { ScrollReading } from "@/components/ScrollReading";
 import { getReading, type Reading } from "@/lib/reading";
 
 type Stage = "idle" | "tracing" | "revealed";
@@ -208,20 +208,10 @@ export default function Home() {
           </div>
         </section>
 
-        {/* READING CHAPTERS */}
+        {/* SCROLL READING */}
         {stage === "revealed" && (
           <div ref={readingRef} className="relative">
-            <Preamble text={reading.preamble} />
-            <div className="celestial-rule mx-auto max-w-3xl" />
-            {reading.chapters.map((c, i) => (
-              <div key={c.numeral}>
-                <ChapterSpread chapter={c} indexOffset={i} />
-                {i < reading.chapters.length - 1 && (
-                  <Divider />
-                )}
-              </div>
-            ))}
-            <Colophon text={reading.colophon} onAgain={reset} />
+            <ScrollReading reading={reading} onAgain={reset} />
           </div>
         )}
       </div>
@@ -374,73 +364,3 @@ function Arrow() {
   );
 }
 
-function Preamble({ text }: { text: string }) {
-  return (
-    <section className="px-6 md:px-12 lg:px-20 pt-24 pb-10">
-      <div className="max-w-[44rem] mx-auto text-center">
-        <div className="marginalia mb-3">Preamble</div>
-        <p
-          className="italic"
-          style={{
-            fontFamily: "var(--font-body)",
-            fontSize: "1.32rem",
-            lineHeight: 1.6,
-            color: "var(--ink)",
-          }}
-        >
-          {text}
-        </p>
-        <div className="celestial-rule celestial-rule--accent w-32 mx-auto mt-10" />
-      </div>
-    </section>
-  );
-}
-
-function Divider() {
-  return (
-    <div className="flex items-center justify-center my-2">
-      <svg width="120" height="22" viewBox="0 0 120 22" aria-hidden="true">
-        <line x1="0" y1="11" x2="48" y2="11" stroke="var(--rule)" strokeWidth="0.6" />
-        <line x1="72" y1="11" x2="120" y2="11" stroke="var(--rule)" strokeWidth="0.6" />
-        <text
-          x="60"
-          y="16"
-          textAnchor="middle"
-          fill="var(--accent)"
-          style={{ fontFamily: "var(--font-display)", fontSize: "14px" }}
-        >
-          ✦
-        </text>
-      </svg>
-    </div>
-  );
-}
-
-function Colophon({ text, onAgain }: { text: string; onAgain: () => void }) {
-  return (
-    <section className="px-6 md:px-12 lg:px-20 pt-12 pb-28">
-      <div className="max-w-[40rem] mx-auto text-center">
-        <div className="celestial-rule celestial-rule--accent w-24 mx-auto mb-8" />
-        <div className="marginalia mb-3">Colophon</div>
-        <p
-          className="italic text-[var(--ink-soft)]"
-          style={{
-            fontFamily: "var(--font-body)",
-            fontSize: "1.1rem",
-            lineHeight: 1.7,
-          }}
-        >
-          {text}
-        </p>
-        <button
-          onClick={onAgain}
-          className="mt-10 inline-flex items-center gap-3 px-5 py-3 border border-[var(--rule)] text-[var(--ink)] hover:border-[var(--accent)] transition-colors duration-500"
-          style={{ fontFamily: "var(--font-display)", letterSpacing: "0.06em" }}
-        >
-          <span className="numeral">§</span>
-          Read another hand
-        </button>
-      </div>
-    </section>
-  );
-}
