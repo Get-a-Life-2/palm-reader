@@ -177,69 +177,77 @@ export async function POST(request: Request) {
     );
   }
 
-  const form = await request.formData();
-  const file = form.get("image");
-  if (!(file instanceof File)) {
-    return NextResponse.json(
-      { error: "No image was provided." },
-      { status: 400 }
-    );
-  }
+  try {
+    const form = await request.formData();
+    const file = form.get("image");
+    if (!(file instanceof File)) {
+      return NextResponse.json(
+        { error: "No image was provided." },
+        { status: 400 }
+      );
+    }
 
-  const bytes = Buffer.from(await file.arrayBuffer());
-  const mime = file.type || "image/jpeg";
-  const dataUrl = `data:${mime};base64,${bytes.toString("base64")}`;
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const mime = file.type || "image/jpeg";
+    const dataUrl = `data:${mime};base64,${bytes.toString("base64")}`;
 
-  const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: "gpt-4o",
-      temperature: 0.9,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: "Here is the photograph. Read this palm and return the structured reading.",
-            },
-            { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
-          ],
-        },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "Reading",
-          strict: true,
-          schema: READING_SCHEMA,
-        },
+    const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
       },
-    }),
-  });
+      body: JSON.stringify({
+        model: "gpt-4o",
+        temperature: 0.9,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "Here is the photograph. Read this palm and return the structured reading.",
+              },
+              { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
+            ],
+          },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "Reading",
+            strict: true,
+            schema: READING_SCHEMA,
+          },
+        },
+      }),
+    });
 
-  if (!openaiResponse.ok) {
-    const errorText = await openaiResponse.text();
+    if (!openaiResponse.ok) {
+      const errorText = await openaiResponse.text();
+      return NextResponse.json(
+        { error: `OpenAI request failed: ${openaiResponse.status} ${errorText}` },
+        { status: 502 }
+      );
+    }
+
+    const completion = await openaiResponse.json();
+    const content: string | undefined = completion?.choices?.[0]?.message?.content;
+    if (!content) {
+      return NextResponse.json(
+        { error: "OpenAI returned no content." },
+        { status: 502 }
+      );
+    }
+
+    const reading = JSON.parse(content) as Reading;
+    return NextResponse.json(reading);
+  } catch (error) {
+    console.error("[/api/read] unexpected error", error);
     return NextResponse.json(
-      { error: `OpenAI request failed: ${openaiResponse.status} ${errorText}` },
-      { status: 502 }
+      { error: "Unexpected server error while generating reading." },
+      { status: 500 }
     );
   }
-
-  const completion = await openaiResponse.json();
-  const content: string | undefined = completion?.choices?.[0]?.message?.content;
-  if (!content) {
-    return NextResponse.json(
-      { error: "OpenAI returned no content." },
-      { status: 502 }
-    );
-  }
-
-  const reading = JSON.parse(content) as Reading;
-  return NextResponse.json(reading);
 }
