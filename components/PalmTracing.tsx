@@ -198,6 +198,10 @@ export function PalmTracing({ state, onTracingComplete }: Props) {
   );
 }
 
+function round3(n: number): number {
+  return Math.round(n * 1000) / 1000;
+}
+
 function Cartouche() {
   return (
     <svg
@@ -229,10 +233,12 @@ function Cartouche() {
         const a = (i / 60) * Math.PI * 2 - Math.PI / 2;
         const r1 = i % 5 === 0 ? 252 : 256;
         const r2 = 260;
-        const x1 = 300 + Math.cos(a) * r1;
-        const y1 = 360 + Math.sin(a) * r1 * 1.2;
-        const x2 = 300 + Math.cos(a) * r2;
-        const y2 = 360 + Math.sin(a) * r2 * 1.2;
+        // Round to avoid SSR/CSR hydration mismatches from trig precision drift
+        // between Node and the browser's V8 builds.
+        const x1 = round3(300 + Math.cos(a) * r1);
+        const y1 = round3(360 + Math.sin(a) * r1 * 1.2);
+        const x2 = round3(300 + Math.cos(a) * r2);
+        const y2 = round3(360 + Math.sin(a) * r2 * 1.2);
         return (
           <line
             key={i}
@@ -249,8 +255,8 @@ function Cartouche() {
       {(["N", "E", "S", "W"] as const).map((dir, i) => {
         const angles = [-Math.PI / 2, 0, Math.PI / 2, Math.PI];
         const a = angles[i];
-        const x = 300 + Math.cos(a) * 280;
-        const y = 360 + Math.sin(a) * 336;
+        const x = round3(300 + Math.cos(a) * 280);
+        const y = round3(360 + Math.sin(a) * 336);
         return (
           <text
             key={dir}
