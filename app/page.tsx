@@ -1,446 +1,583 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Header } from "@/components/Header";
 import { StarField } from "@/components/StarField";
-import { PalmTracing } from "@/components/PalmTracing";
-import { ChapterSpread } from "@/components/ChapterSpread";
-import { getReading, type Reading } from "@/lib/reading";
+import { InteractivePalm } from "@/components/InteractivePalm";
+import { setPendingFile } from "@/lib/pendingFile";
+import {
+  HAND_LORE,
+  DOMINANCE_NOTE,
+  LINE_LORE,
+  type HandSide,
+  type LineLore,
+} from "@/lib/handLore";
+import type { LineId } from "@/lib/palmLines";
 
-type Stage = "idle" | "tracing" | "revealed";
+type Stage = "hero" | "heart" | "head" | "life" | "fate" | "closing";
+
+const STAGES: readonly Stage[] = [
+  "hero",
+  "heart",
+  "head",
+  "life",
+  "fate",
+  "closing",
+];
+
+// Map each chapter line to which gutter (left or right) it speaks from. We
+// alternate so the marginalia visually pulls the eye across the palm — heart
+// on the left, head on the right, life on the left, fate on the right.
+const CHAPTER_SIDE: Record<LineId, "left" | "right"> = {
+  heart: "left",
+  head: "right",
+  life: "left",
+  fate: "right",
+};
 
 export default function Home() {
-  const [stage, setStage] = useState<Stage>("idle");
-  const [tracingDone, setTracingDone] = useState(false);
-  const [liveReading, setLiveReading] = useState<Reading | null>(null);
-  const [readingError, setReadingError] = useState<string | null>(null);
+  const router = useRouter();
   const fileRef = useRef<HTMLInputElement | null>(null);
-  const readingRef = useRef<HTMLDivElement | null>(null);
+  const [stage, setStage] = useState<Stage>("hero");
 
-  const fallbackReading = getReading();
-  const reading = liveReading ?? fallbackReading;
-
-  async function handleFile(file: File | null) {
+  function handleFile(file: File | null) {
     if (!file) return;
-    setStage("tracing");
-    setTracingDone(false);
-    setLiveReading(null);
-    setReadingError(null);
-
-    try {
-      const formData = new FormData();
-      formData.append("image", file);
-      const res = await fetch("/api/read", { method: "POST", body: formData });
-      if (!res.ok) {
-        const payload = await res.json().catch(() => null);
-        throw new Error(payload?.error ?? `Request failed (${res.status})`);
-      }
-      const data = (await res.json()) as Reading;
-      setLiveReading(data);
-    } catch (e) {
-      setReadingError(e instanceof Error ? e.message : "The chart could not be read.");
-    }
+    setPendingFile(file);
+    router.push("/reading");
   }
 
-  function reset() {
-    setStage("idle");
-    setTracingDone(false);
-    setLiveReading(null);
-    setReadingError(null);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
+  const openPicker = useCallback(() => {
+    fileRef.current?.click();
+  }, []);
 
-  // Reveal only when the tracing animation has finished AND the live reading has arrived.
-  useEffect(() => {
-    if (stage === "tracing" && tracingDone && liveReading) {
-      setStage("revealed");
-    }
-  }, [stage, tracingDone, liveReading]);
-
-  useEffect(() => {
-    if (stage === "revealed" && readingRef.current) {
-      const t = setTimeout(() => {
-        readingRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 800);
-      return () => clearTimeout(t);
-    }
-  }, [stage]);
-
-  const waitingOnReading = stage === "tracing" && tracingDone && !liveReading && !readingError;
+  const activeLine: LineId | null =
+    stage === "heart" || stage === "head" || stage === "life" || stage === "fate"
+      ? stage
+      : null;
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden">
+    <main className="relative">
       <StarField />
 
-      <div className="relative z-10">
-        <Header />
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="sr-only"
+        onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
+      />
 
-        {/* HERO SPREAD */}
-        <section className="relative px-6 md:px-10 lg:px-14 pt-6 pb-24 md:pb-32">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-start">
-            {/* Left column: title block */}
-            <div className="lg:col-span-5">
-              <div className="marginalia mb-5">{reading.folio}</div>
-              <h1
-                className="text-[clamp(2.6rem,6vw,4.6rem)] leading-[0.98] tracking-[-0.015em] text-[var(--ink)]"
-                style={{ fontFamily: "var(--font-display)" }}
-              >
-                An atlas
-                <br />
-                of the <em className="italic" style={{ color: "var(--accent)" }}>hand,</em>
-                <br />
-                read by stars.
-              </h1>
+      {/* Visual layer — fixed in viewport. The page itself never moves; only
+          this layer's panels cross-fade as the scroll position advances stage. */}
+      <div className="fixed inset-0 z-20 flex flex-col">
+        <Header trailing={<HeaderSubmit onClick={openPicker} />} />
 
-              <div className="celestial-rule celestial-rule--accent w-32 my-8" />
+        <TitleBlock />
 
-              <p
-                className="max-w-[44ch] text-[var(--ink-soft)]"
-                style={{
-                  fontFamily: "var(--font-body)",
-                  fontSize: "1.18rem",
-                  lineHeight: 1.65,
-                }}
-              >
-                Hold up your dominant hand to the camera, fingers a little spread, palm
-                toward the lens. We will trace its lines as a chart, and translate the
-                chart into five short chapters.
-              </p>
+        <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 lg:grid-rows-1 lg:gap-6 lg:px-14 lg:items-stretch lg:max-w-[1400px] lg:mx-auto lg:w-full min-h-0 px-6 md:px-10">
+          {/* Desktop: left gutter */}
+          <div className="hidden lg:block lg:col-span-3 lg:relative lg:h-full">
+            <LeftGutter stage={stage} />
+          </div>
 
-              {/* Upload affordance */}
-              {stage === "idle" && (
-                <div className="mt-10 space-y-4">
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    className="sr-only"
-                    onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
-                  />
-                  <button
-                    onClick={() => fileRef.current?.click()}
-                    className="group inline-flex items-center gap-3 pl-5 pr-7 py-3.5 border border-[var(--accent)] text-[var(--ink)] hover:bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] transition-colors duration-500"
-                    style={{
-                      fontFamily: "var(--font-display)",
-                      letterSpacing: "0.06em",
-                    }}
-                  >
-                    <span className="numeral">§</span>
-                    <span className="text-[1.05rem]">Submit your palm</span>
-                    <Arrow />
-                  </button>
-                  <div className="marginalia mt-3 max-w-[36ch]">
-                    A still photograph in good light. The chart is drawn, the
-                    lines are named, and translated into five short chapters.
-                  </div>
-                </div>
-              )}
-
-              {stage !== "idle" && (
-                <div className="mt-10">
-                  <button
-                    onClick={reset}
-                    className="marginalia hover:text-[var(--ink)] transition-colors"
-                  >
-                    ← Begin again with another hand
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Right column: cartouche */}
-            <div className="lg:col-span-7">
-              <div className="relative">
-                {stage === "idle" && (
-                  <IdleCartouche
-                    onPick={() => fileRef.current?.click()}
-                  />
-                )}
-                {stage !== "idle" && (
-                  <PalmTracing
-                    state={stage}
-                    onTracingComplete={() => setTracingDone(true)}
-                  />
-                )}
-
-                {/* Marginalia under cartouche */}
-                <div className="mt-6 grid grid-cols-3 gap-4 max-w-[560px] mx-auto">
-                  <MarginNote n="i" label="Linea Mensalis" hint="heart" />
-                  <MarginNote n="ii" label="Linea Cephalica" hint="head" />
-                  <MarginNote n="iii" label="Linea Vitalis" hint="life" />
-                </div>
-
-                {waitingOnReading && (
-                  <div className="mt-6 flex items-center justify-center">
-                    <div className="marginalia inline-flex items-center gap-3">
-                      <span className="celestial-rule w-10" />
-                      Consulting the chart
-                      <span className="inline-flex gap-1" aria-hidden="true">
-                        <Dot delay={0} />
-                        <Dot delay={180} />
-                        <Dot delay={360} />
-                      </span>
-                      <span className="celestial-rule w-10" />
-                    </div>
-                  </div>
-                )}
-
-                {readingError && stage !== "idle" && (
-                  <div className="mt-6 max-w-[44ch] mx-auto text-center">
-                    <div className="marginalia mb-2">An interruption</div>
-                    <p
-                      className="italic text-[var(--ink-soft)]"
-                      style={{ fontFamily: "var(--font-body)", fontSize: "1rem", lineHeight: 1.6 }}
-                    >
-                      The chart could not be read. {readingError}
-                    </p>
-                    <button
-                      onClick={reset}
-                      className="mt-4 marginalia hover:text-[var(--ink)] transition-colors"
-                    >
-                      ← Try another photograph
-                    </button>
-                  </div>
-                )}
-              </div>
+          {/* Palm — fixed, all 4 lines drawn, only the active line lifts.
+              Sized via min(vh, vw) so it picks up whichever axis is more
+              constraining. aspect-ratio needs an explicit dimension to size
+              anything; without it the box collapses to 0×0. */}
+          <div className="lg:col-span-6 flex-1 flex items-center justify-center min-h-0 py-2">
+            <div
+              className="pointer-events-none mx-auto"
+              style={{
+                aspectRatio: "5 / 6",
+                height: "min(62vh, 72vw)",
+                maxWidth: "100%",
+                maxHeight: "100%",
+              }}
+            >
+              <InteractivePalm activeLine={activeLine} />
             </div>
           </div>
-        </section>
 
-        {/* READING CHAPTERS */}
-        {stage === "revealed" && (
-          <div ref={readingRef} className="relative">
-            <Preamble text={reading.preamble} />
-            <div className="celestial-rule mx-auto max-w-3xl" />
-            {reading.chapters.map((c, i) => (
-              <div key={c.numeral}>
-                <ChapterSpread chapter={c} indexOffset={i} />
-                {i < reading.chapters.length - 1 && (
-                  <Divider />
-                )}
-              </div>
-            ))}
-            <Colophon text={reading.colophon} onAgain={reset} />
+          {/* Desktop: right gutter */}
+          <div className="hidden lg:block lg:col-span-3 lg:relative lg:h-full">
+            <RightGutter stage={stage} />
           </div>
-        )}
+
+          {/* Mobile: bottom gutter (replaces side gutters) */}
+          <div
+            className="lg:hidden relative w-full"
+            style={{ height: "30vh", flex: "0 0 30vh" }}
+          >
+            <MobileGutter stage={stage} onSubmit={openPicker} />
+          </div>
+        </div>
+
+        {/* Desktop footer — scroll cue / continue indicator / closing CTA */}
+        <div className="hidden lg:block">
+          <DesktopFooter stage={stage} onSubmit={openPicker} />
+        </div>
+
+        <StageIndicator stage={stage} />
+      </div>
+
+      {/* Scroll driver — invisible. Each child is a viewport tall and fires an
+          IntersectionObserver when its centre crosses the viewport's middle,
+          updating the stage state. Total page height = STAGES.length × 100vh. */}
+      <div aria-hidden>
+        {STAGES.map((s) => (
+          <StageTrigger key={s} stage={s} onActive={setStage} />
+        ))}
       </div>
     </main>
   );
 }
 
-function IdleCartouche({ onPick }: { onPick: () => void }) {
+function HeaderSubmit({ onClick }: { onClick: () => void }) {
   return (
     <button
-      onClick={onPick}
-      className="group relative block w-full aspect-[5/6] max-w-[560px] mx-auto cursor-pointer"
-      aria-label="Submit a photograph of your palm"
+      onClick={onClick}
+      className="hidden md:inline-flex items-center gap-2 px-3 py-1.5 text-[0.72rem] uppercase tracking-[0.18em] text-[var(--ink-soft)] hover:text-[var(--ink)] border border-[var(--rule)] hover:border-[var(--accent)] transition-colors duration-500"
+      style={{ fontFamily: "var(--font-display)" }}
     >
-      {/* The specimen plate — a labeled palm chart, treated as an etched manuscript figure */}
-      <div
-        className="absolute"
-        style={{
-          inset: "11% 14%",
-          clipPath: "ellipse(50% 50% at 50% 50%)",
-        }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/images/palm.png"
-          alt=""
-          aria-hidden="true"
-          className="palm-plate w-full h-full object-contain transition-all duration-700 group-hover:scale-[1.02]"
-        />
-      </div>
-
-      <svg viewBox="0 0 600 720" className="absolute inset-0 w-full h-full" aria-hidden="true">
-        <ellipse cx="300" cy="360" rx="270" ry="324" fill="none" stroke="var(--rule)" strokeWidth="0.6" />
-        <ellipse cx="300" cy="360" rx="262" ry="316" fill="none" stroke="var(--rule)" strokeWidth="0.4" />
-        <ellipse
-          cx="300"
-          cy="360"
-          rx="240"
-          ry="294"
-          fill="none"
-          stroke="var(--accent)"
-          strokeWidth="0.7"
-          strokeDasharray="4 6"
-          className="transition-all duration-700 opacity-50 group-hover:opacity-95"
-        />
-        {Array.from({ length: 60 }).map((_, i) => {
-          const a = (i / 60) * Math.PI * 2 - Math.PI / 2;
-          const r1 = i % 5 === 0 ? 252 : 256;
-          const r2 = 260;
-          const x1 = 300 + Math.cos(a) * r1;
-          const y1 = 360 + Math.sin(a) * r1 * 1.2;
-          const x2 = 300 + Math.cos(a) * r2;
-          const y2 = 360 + Math.sin(a) * r2 * 1.2;
-          return (
-            <line
-              key={i}
-              x1={x1}
-              y1={y1}
-              x2={x2}
-              y2={y2}
-              stroke="var(--rule)"
-              strokeWidth={i % 5 === 0 ? 0.6 : 0.3}
-            />
-          );
-        })}
-        {/* north tick */}
-        <text
-          x="300"
-          y="48"
-          textAnchor="middle"
-          fill="var(--accent)"
-          style={{ fontFamily: "var(--font-display)", fontStyle: "italic", fontSize: "13px" }}
-        >
-          ✦
-        </text>
-        {/* specimen-plate caption (top) */}
-        <text
-          x="300"
-          y="86"
-          textAnchor="middle"
-          fill="var(--ink-soft)"
-          style={{
-            fontFamily: "var(--font-display)",
-            fontSize: "10.5px",
-            letterSpacing: "0.22em",
-            textTransform: "uppercase",
-          }}
-        >
-          Specimen Plate · Fig. ⓪
-        </text>
-        {/* call-to-action chip (bottom) */}
-        <g
-          transform="translate(300, 670)"
-          className="transition-opacity duration-700"
-        >
-          <line x1="-90" y1="0" x2="-30" y2="0" stroke="var(--accent)" strokeWidth="0.6" />
-          <line x1="30" y1="0" x2="90" y2="0" stroke="var(--accent)" strokeWidth="0.6" />
-          <text
-            textAnchor="middle"
-            y="4"
-            fill="var(--accent)"
-            style={{
-              fontFamily: "var(--font-display)",
-              fontStyle: "italic",
-              fontSize: "13px",
-              letterSpacing: "0.04em",
-            }}
-          >
-            Tap to read your own
-          </text>
-        </g>
-      </svg>
+      <span className="numeral">§</span>
+      Submit your palm
     </button>
   );
 }
 
-function MarginNote({ n, label, hint }: { n: string; label: string; hint: string }) {
+function TitleBlock() {
   return (
-    <div className="flex flex-col items-center text-center">
-      <span className="numeral">{n}</span>
-      <span
-        className="text-[0.92rem] mt-1"
-        style={{ fontFamily: "var(--font-display)", fontStyle: "italic", color: "var(--ink)" }}
+    <div className="text-center px-6 md:px-10 lg:px-14 pt-1 pb-2 max-w-[1400px] mx-auto w-full">
+      <div className="marginalia mb-1">Folio MMXXVI · Liber I</div>
+      <h1
+        className="text-[clamp(1.4rem,3.4vw,3.4rem)] leading-[1.05] tracking-[-0.015em] text-[var(--ink)] md:whitespace-nowrap"
+        style={{ fontFamily: "var(--font-display)" }}
       >
-        {label}
-      </span>
-      <span className="marginalia text-[0.68rem]">{hint}</span>
+        An atlas of the{" "}
+        <em className="italic" style={{ color: "var(--accent)" }}>
+          hand,
+        </em>{" "}
+        read by stars.
+      </h1>
+      <div className="celestial-rule celestial-rule--accent w-32 mx-auto mt-2" />
     </div>
   );
 }
 
-function Dot({ delay }: { delay: number }) {
+function LeftGutter({ stage }: { stage: Stage }) {
   return (
-    <span
-      className="inline-block w-1 h-1 rounded-full bg-[var(--accent)]"
+    <>
+      <FadePanel visible={stage === "hero"}>
+        <HandColumn side={HAND_LORE.left} alignment="right" />
+      </FadePanel>
+      {LINE_LORE.filter((l) => CHAPTER_SIDE[l.id] === "left").map((lore) => (
+        <FadePanel key={lore.id} visible={stage === lore.id}>
+          <ChapterColumn lore={lore} alignment="right" />
+        </FadePanel>
+      ))}
+    </>
+  );
+}
+
+function RightGutter({ stage }: { stage: Stage }) {
+  return (
+    <>
+      <FadePanel visible={stage === "hero"}>
+        <HandColumn side={HAND_LORE.right} alignment="left" />
+      </FadePanel>
+      {LINE_LORE.filter((l) => CHAPTER_SIDE[l.id] === "right").map((lore) => (
+        <FadePanel key={lore.id} visible={stage === lore.id}>
+          <ChapterColumn lore={lore} alignment="left" />
+        </FadePanel>
+      ))}
+    </>
+  );
+}
+
+function FadePanel({
+  visible,
+  children,
+}: {
+  visible: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className="absolute inset-0 flex items-center overflow-y-auto"
       style={{
-        animation: `fade-in 1s ease ${delay}ms infinite alternate`,
-        opacity: 0.3,
+        opacity: visible ? 1 : 0,
+        pointerEvents: visible ? "auto" : "none",
+        transition: "opacity 800ms var(--ease-celestial, ease)",
       }}
-    />
+      aria-hidden={!visible}
+    >
+      <div className="w-full">{children}</div>
+    </div>
+  );
+}
+
+function HandColumn({
+  side,
+  alignment,
+}: {
+  side: HandSide;
+  alignment: "left" | "right";
+}) {
+  const isRight = alignment === "right";
+  return (
+    <aside className={isRight ? "text-right" : "text-left"}>
+      <div className="marginalia mb-2">{side.marginal}</div>
+      <div
+        className="celestial-rule celestial-rule--accent w-20 mb-4"
+        style={{
+          marginLeft: isRight ? "auto" : 0,
+          marginRight: isRight ? 0 : "auto",
+        }}
+      />
+      <p
+        className="italic mb-5 text-[var(--ink)]"
+        style={{
+          fontFamily: "var(--font-display)",
+          fontSize: "1.05rem",
+          lineHeight: 1.4,
+        }}
+      >
+        {side.flavor}
+      </p>
+      <div className="space-y-4">
+        <div>
+          <div className="marginalia mb-1">If you are a man</div>
+          <p
+            className="text-[var(--ink-soft)]"
+            style={{
+              fontFamily: "var(--font-body)",
+              fontSize: "0.94rem",
+              lineHeight: 1.55,
+            }}
+          >
+            {side.forMan}
+          </p>
+        </div>
+        <div>
+          <div className="marginalia mb-1">If you are a woman</div>
+          <p
+            className="text-[var(--ink-soft)]"
+            style={{
+              fontFamily: "var(--font-body)",
+              fontSize: "0.94rem",
+              lineHeight: 1.55,
+            }}
+          >
+            {side.forWoman}
+          </p>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function ChapterColumn({
+  lore,
+  alignment,
+}: {
+  lore: LineLore;
+  alignment: "left" | "right";
+}) {
+  const isRight = alignment === "right";
+  return (
+    <article className={isRight ? "text-right" : "text-left"}>
+      <div
+        className="celestial-rule celestial-rule--accent w-20 mb-3"
+        style={{
+          marginLeft: isRight ? "auto" : 0,
+          marginRight: isRight ? 0 : "auto",
+        }}
+      />
+      <div className="marginalia mb-1">Chapter {lore.numeral}</div>
+      <h2
+        className="text-[clamp(1.4rem,2.4vw,2.2rem)] leading-[1.05] tracking-[-0.01em] mb-2"
+        style={{ fontFamily: "var(--font-display)", color: "var(--ink)" }}
+      >
+        {lore.title}
+      </h2>
+      <p
+        className="italic mb-3 text-[var(--ink-soft)]"
+        style={{ fontFamily: "var(--font-body)", fontSize: "0.96rem" }}
+      >
+        {lore.latin} —{" "}
+        <span style={{ color: "var(--ink)" }}>{lore.blurb}</span>
+      </p>
+      <p
+        className="mb-4 text-[var(--ink)]"
+        style={{
+          fontFamily: "var(--font-body)",
+          fontSize: "0.94rem",
+          lineHeight: 1.55,
+        }}
+      >
+        {lore.whatItTells}
+      </p>
+      <ul className="space-y-1.5">
+        {lore.signs.slice(0, 5).map((sign, i) => (
+          <li
+            key={sign.mark}
+            className="flex gap-2 items-baseline pb-1.5 border-b border-[var(--rule)] last:border-b-0"
+            style={{ flexDirection: isRight ? "row-reverse" : "row" }}
+          >
+            <span className="numeral text-[0.72rem] flex-shrink-0">
+              {toRoman(i + 1)}
+            </span>
+            <span
+              style={{
+                fontFamily: "var(--font-body)",
+                fontSize: "0.86rem",
+                lineHeight: 1.45,
+              }}
+            >
+              <span
+                className="italic"
+                style={{
+                  fontFamily: "var(--font-display)",
+                  color: "var(--ink)",
+                }}
+              >
+                {sign.mark}
+              </span>
+              <span className="text-[var(--ink-soft)]">
+                {" "}
+                — {sign.meaning}.
+              </span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </article>
+  );
+}
+
+function MobileGutter({
+  stage,
+  onSubmit,
+}: {
+  stage: Stage;
+  onSubmit: () => void;
+}) {
+  return (
+    <>
+      <FadePanel visible={stage === "hero"}>
+        <div className="text-center max-w-[44ch] mx-auto">
+          <p
+            className="italic text-[var(--ink-soft)]"
+            style={{
+              fontFamily: "var(--font-body)",
+              fontSize: "0.94rem",
+              lineHeight: 1.55,
+            }}
+          >
+            {DOMINANCE_NOTE}
+          </p>
+          <ScrollCue className="mt-4" />
+        </div>
+      </FadePanel>
+      {LINE_LORE.map((lore) => (
+        <FadePanel key={lore.id} visible={stage === lore.id}>
+          <ChapterColumn lore={lore} alignment="left" />
+        </FadePanel>
+      ))}
+      <FadePanel visible={stage === "closing"}>
+        <ClosingPanel onSubmit={onSubmit} />
+      </FadePanel>
+    </>
+  );
+}
+
+function DesktopFooter({
+  stage,
+  onSubmit,
+}: {
+  stage: Stage;
+  onSubmit: () => void;
+}) {
+  const isChapter =
+    stage === "heart" || stage === "head" || stage === "life" || stage === "fate";
+  return (
+    <div className="relative h-28 px-14 max-w-[1400px] mx-auto w-full">
+      <FadePanel visible={stage === "hero"}>
+        <div className="text-center max-w-[60ch] mx-auto">
+          <p
+            className="italic text-[var(--ink-soft)] mb-3"
+            style={{
+              fontFamily: "var(--font-body)",
+              fontSize: "0.94rem",
+              lineHeight: 1.55,
+            }}
+          >
+            {DOMINANCE_NOTE}
+          </p>
+          <ScrollCue />
+        </div>
+      </FadePanel>
+      <FadePanel visible={isChapter}>
+        <div className="text-center">
+          <ContinueIndicator stage={stage} />
+        </div>
+      </FadePanel>
+      <FadePanel visible={stage === "closing"}>
+        <ClosingPanel onSubmit={onSubmit} />
+      </FadePanel>
+    </div>
+  );
+}
+
+function ScrollCue({ className = "" }: { className?: string }) {
+  return (
+    <div className={`inline-flex items-center gap-3 marginalia ${className}`}>
+      <span className="celestial-rule w-12" />
+      Scroll · the four lines
+      <span className="celestial-rule w-12" />
+    </div>
+  );
+}
+
+function ContinueIndicator({ stage }: { stage: Stage }) {
+  const next: Record<Stage, string> = {
+    hero: "",
+    heart: "Continue · the head line",
+    head: "Continue · the life line",
+    life: "Continue · the fate line",
+    fate: "Continue · the closing",
+    closing: "",
+  };
+  return (
+    <div className="inline-flex items-center gap-3 marginalia">
+      <span className="celestial-rule w-12" />
+      {next[stage]}
+      <span className="celestial-rule w-12" />
+    </div>
+  );
+}
+
+function ClosingPanel({ onSubmit }: { onSubmit: () => void }) {
+  return (
+    <div className="text-center">
+      <div className="marginalia mb-1">Now</div>
+      <h2
+        className="text-[clamp(1.6rem,2.6vw,2.4rem)] leading-[1.05] mb-4"
+        style={{ fontFamily: "var(--font-display)", color: "var(--ink)" }}
+      >
+        Read your{" "}
+        <em className="italic" style={{ color: "var(--accent)" }}>
+          own
+        </em>{" "}
+        hand.
+      </h2>
+      <button
+        onClick={onSubmit}
+        className="group inline-flex items-center gap-3 pl-5 pr-6 py-3 border border-[var(--accent)] text-[var(--ink)] hover:bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] transition-colors duration-500"
+        style={{ fontFamily: "var(--font-display)", letterSpacing: "0.06em" }}
+      >
+        <span className="numeral">§</span>
+        <span className="text-[1rem]">Submit your palm</span>
+        <Arrow />
+      </button>
+    </div>
+  );
+}
+
+function StageIndicator({ stage }: { stage: Stage }) {
+  return (
+    <div
+      className="absolute right-6 lg:right-8 top-1/2 -translate-y-1/2 flex flex-col items-center gap-3"
+      aria-hidden
+    >
+      {STAGES.map((s) => {
+        const isCurrent = s === stage;
+        return (
+          <span
+            key={s}
+            className="block w-1.5 h-1.5 rounded-full"
+            style={{
+              backgroundColor: isCurrent ? "var(--accent)" : "transparent",
+              border: `1px solid var(--${isCurrent ? "accent" : "rule"})`,
+              transform: isCurrent ? "scale(1.6)" : "scale(1)",
+              transition:
+                "background-color 600ms var(--ease-celestial, ease)," +
+                " border-color 600ms ease," +
+                " transform 600ms var(--ease-celestial, ease)",
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function StageTrigger({
+  stage,
+  onActive,
+}: {
+  stage: Stage;
+  onActive: (s: Stage) => void;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) onActive(stage);
+        }
+      },
+      { rootMargin: "-50% 0px -50% 0px", threshold: 0 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [stage, onActive]);
+
+  return (
+    <div ref={ref} className="h-screen" data-stage={stage} aria-hidden />
   );
 }
 
 function Arrow() {
   return (
     <svg width="22" height="10" viewBox="0 0 22 10" aria-hidden="true">
-      <line x1="0" y1="5" x2="20" y2="5" stroke="currentColor" strokeWidth="0.8" />
-      <polyline points="14,1 20,5 14,9" fill="none" stroke="currentColor" strokeWidth="0.8" />
+      <line
+        x1="0"
+        y1="5"
+        x2="20"
+        y2="5"
+        stroke="currentColor"
+        strokeWidth="0.8"
+      />
+      <polyline
+        points="14,1 20,5 14,9"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="0.8"
+      />
     </svg>
   );
 }
 
-function Preamble({ text }: { text: string }) {
-  return (
-    <section className="px-6 md:px-12 lg:px-20 pt-24 pb-10">
-      <div className="max-w-[44rem] mx-auto text-center">
-        <div className="marginalia mb-3">Preamble</div>
-        <p
-          className="italic"
-          style={{
-            fontFamily: "var(--font-body)",
-            fontSize: "1.32rem",
-            lineHeight: 1.6,
-            color: "var(--ink)",
-          }}
-        >
-          {text}
-        </p>
-        <div className="celestial-rule celestial-rule--accent w-32 mx-auto mt-10" />
-      </div>
-    </section>
-  );
-}
-
-function Divider() {
-  return (
-    <div className="flex items-center justify-center my-2">
-      <svg width="120" height="22" viewBox="0 0 120 22" aria-hidden="true">
-        <line x1="0" y1="11" x2="48" y2="11" stroke="var(--rule)" strokeWidth="0.6" />
-        <line x1="72" y1="11" x2="120" y2="11" stroke="var(--rule)" strokeWidth="0.6" />
-        <text
-          x="60"
-          y="16"
-          textAnchor="middle"
-          fill="var(--accent)"
-          style={{ fontFamily: "var(--font-display)", fontSize: "14px" }}
-        >
-          ✦
-        </text>
-      </svg>
-    </div>
-  );
-}
-
-function Colophon({ text, onAgain }: { text: string; onAgain: () => void }) {
-  return (
-    <section className="px-6 md:px-12 lg:px-20 pt-12 pb-28">
-      <div className="max-w-[40rem] mx-auto text-center">
-        <div className="celestial-rule celestial-rule--accent w-24 mx-auto mb-8" />
-        <div className="marginalia mb-3">Colophon</div>
-        <p
-          className="italic text-[var(--ink-soft)]"
-          style={{
-            fontFamily: "var(--font-body)",
-            fontSize: "1.1rem",
-            lineHeight: 1.7,
-          }}
-        >
-          {text}
-        </p>
-        <button
-          onClick={onAgain}
-          className="mt-10 inline-flex items-center gap-3 px-5 py-3 border border-[var(--rule)] text-[var(--ink)] hover:border-[var(--accent)] transition-colors duration-500"
-          style={{ fontFamily: "var(--font-display)", letterSpacing: "0.06em" }}
-        >
-          <span className="numeral">§</span>
-          Read another hand
-        </button>
-      </div>
-    </section>
-  );
+function toRoman(n: number): string {
+  const map: [number, string][] = [
+    [10, "x"],
+    [9, "ix"],
+    [5, "v"],
+    [4, "iv"],
+    [1, "i"],
+  ];
+  let res = "";
+  for (const [val, sym] of map) {
+    while (n >= val) {
+      res += sym;
+      n -= val;
+    }
+  }
+  return res;
 }

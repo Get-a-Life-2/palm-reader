@@ -1,9 +1,9 @@
 import { ThemeToggle } from "./ThemeToggle";
 
-export function Header() {
+export function Header({ trailing }: { trailing?: React.ReactNode }) {
   return (
     <header className="relative z-10 px-6 md:px-10 lg:px-14 pt-7 pb-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Mark />
           <div className="flex flex-col leading-tight">
@@ -16,7 +16,10 @@ export function Header() {
             <span className="marginalia mt-0.5">A reading in five chapters</span>
           </div>
         </div>
-        <ThemeToggle />
+        <div className="flex items-center gap-3 md:gap-5">
+          {trailing}
+          <ThemeToggle />
+        </div>
       </div>
       <div className="celestial-rule mt-6" />
     </header>
