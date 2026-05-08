@@ -40,7 +40,7 @@ export type LineSign = { mark: string; meaning: string };
 
 export type LineLore = {
   id: LineId;
-  numeral: "I" | "II" | "III" | "IV";
+  numeral: "I" | "II" | "III" | "IV" | "V";
   title: string;
   latin: string;
   blurb: string;
@@ -117,6 +117,23 @@ export const LINE_LORE: readonly LineLore[] = [
       { mark: "Joins the life line in the middle", meaning: "a point at which one's own interests must yield to others" },
       { mark: "A fork toward the end", meaning: "great wealth, of one kind or another, ahead" },
       { mark: "No line at all", meaning: "a comfortable life, but not a noisy one" },
+    ],
+  },
+  {
+    id: "mercury",
+    numeral: "V",
+    title: "The Mercury Line",
+    latin: "Linea Mercurii",
+    blurb: "Of the tongue, the trade, and the body's quiet ledger.",
+    whatItTells:
+      "The fifth line descends from the mount of Mercury, below the little finger, toward the plain of the hand. It is the line of commerce and of health — the body's commentary on the life being lived above it.",
+    signs: [
+      { mark: "Absent entirely", meaning: "good health; a body that has not needed to speak" },
+      { mark: "Long and unbroken", meaning: "a gift for business and persuasion" },
+      { mark: "Wavy", meaning: "a nervous constitution; a system that speaks in riddles" },
+      { mark: "Islands upon the line", meaning: "periods of poor health, each with a season of recovery" },
+      { mark: "Crosses the life line", meaning: "health matters that redirect the course of life" },
+      { mark: "Begins within the life line", meaning: "health and circumstance entwined; the two lines do not separate easily" },
     ],
   },
 ];
