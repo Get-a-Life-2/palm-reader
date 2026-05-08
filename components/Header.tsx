@@ -13,7 +13,7 @@ export function Header({ trailing }: { trailing?: React.ReactNode }) {
             >
               Atlas of the Hand
             </span>
-            <span className="marginalia mt-0.5">A reading in five chapters</span>
+            <span className="marginalia mt-0.5 hidden sm:block">A reading in five chapters</span>
           </div>
         </div>
         <div className="flex items-center gap-3 md:gap-5">
