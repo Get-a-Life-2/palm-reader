@@ -15,7 +15,7 @@ import {
 } from "@/lib/handLore";
 import type { LineId } from "@/lib/palmLines";
 
-type Stage = "hero" | "heart" | "head" | "life" | "fate" | "closing";
+type Stage = "hero" | "heart" | "head" | "life" | "fate" | "mercury" | "closing";
 
 const STAGES: readonly Stage[] = [
   "hero",
@@ -23,6 +23,7 @@ const STAGES: readonly Stage[] = [
   "head",
   "life",
   "fate",
+  "mercury",
   "closing",
 ];
 
@@ -34,6 +35,7 @@ const CHAPTER_SIDE: Record<LineId, "left" | "right"> = {
   head: "right",
   life: "left",
   fate: "right",
+  mercury: "left",
 };
 
 export default function Home() {
@@ -52,7 +54,7 @@ export default function Home() {
   }, []);
 
   const activeLine: LineId | null =
-    stage === "heart" || stage === "head" || stage === "life" || stage === "fate"
+    stage === "heart" || stage === "head" || stage === "life" || stage === "fate" || stage === "mercury"
       ? stage
       : null;
 
@@ -401,7 +403,7 @@ function DesktopFooter({
   onSubmit: () => void;
 }) {
   const isChapter =
-    stage === "heart" || stage === "head" || stage === "life" || stage === "fate";
+    stage === "heart" || stage === "head" || stage === "life" || stage === "fate" || stage === "mercury";
   return (
     <div className="relative h-28 px-14 max-w-[1400px] mx-auto w-full">
       <FadePanel visible={stage === "hero"}>
@@ -435,7 +437,7 @@ function ScrollCue({ className = "" }: { className?: string }) {
   return (
     <div className={`inline-flex items-center gap-3 marginalia ${className}`}>
       <span className="celestial-rule w-12" />
-      Scroll · the four lines
+      Scroll · the five lines
       <span className="celestial-rule w-12" />
     </div>
   );
@@ -447,7 +449,8 @@ function ContinueIndicator({ stage }: { stage: Stage }) {
     heart: "Continue · the head line",
     head: "Continue · the life line",
     life: "Continue · the fate line",
-    fate: "Continue · the closing",
+    fate: "Continue · the mercury line",
+    mercury: "Continue · the closing",
     closing: "",
   };
   return (
