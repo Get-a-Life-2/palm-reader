@@ -110,7 +110,7 @@ export default function Home() {
           {/* Mobile: bottom gutter (replaces side gutters) */}
           <div
             className="lg:hidden relative w-full"
-            style={{ height: "30vh", flex: "0 0 30vh" }}
+            style={{ height: "38vh", flex: "0 0 38vh" }}
           >
             <MobileGutter stage={stage} onSubmit={openPicker} />
           </div>
@@ -201,13 +201,15 @@ function RightGutter({ stage }: { stage: Stage }) {
 function FadePanel({
   visible,
   children,
+  align = "center",
 }: {
   visible: boolean;
   children: React.ReactNode;
+  align?: "center" | "start";
 }) {
   return (
     <div
-      className="absolute inset-0 flex items-center overflow-y-auto"
+      className={`absolute inset-0 flex overflow-y-auto ${align === "start" ? "items-start pt-3" : "items-center"}`}
       style={{
         opacity: visible ? 1 : 0,
         pointerEvents: visible ? "auto" : "none",
@@ -384,7 +386,7 @@ function MobileGutter({
         </div>
       </FadePanel>
       {LINE_LORE.map((lore) => (
-        <FadePanel key={lore.id} visible={stage === lore.id}>
+        <FadePanel key={lore.id} visible={stage === lore.id} align="start">
           <ChapterColumn lore={lore} alignment="left" />
         </FadePanel>
       ))}
@@ -492,7 +494,7 @@ function ClosingPanel({ onSubmit }: { onSubmit: () => void }) {
 function StageIndicator({ stage }: { stage: Stage }) {
   return (
     <div
-      className="absolute right-6 lg:right-8 top-1/2 -translate-y-1/2 flex flex-col items-center gap-3"
+      className="absolute right-4 sm:right-6 lg:right-8 top-1/2 -translate-y-1/2 flex flex-col items-center gap-3"
       aria-hidden
     >
       {STAGES.map((s) => {
